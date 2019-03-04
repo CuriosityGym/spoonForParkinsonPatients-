@@ -52,7 +52,10 @@ void setup(){
   Serial.print(gyroY_cal);
   Serial.print("  gyroZ_cal: ");
   Serial.print(gyroZ_cal);
-  //delay(2000);
+  delay(500); //Short delay to allow the serial communication to finish
+  //###########
+  Serial.end(); //Closing the serial communication to save CPU resources
+  //###########
   loop_timer = micros();
 }
 
@@ -67,26 +70,43 @@ void loop(){
   angle_pitch += gyroX * 0.000122;
   angle_roll += gyroY * 0.000122;
 
-   //0.000001066 = 0.0000611 * (3.142(PI) / 180degr) The Arduino sin function is in radians
-  angle_pitch += angle_roll * sin(gyroZ * 0.000002131);               //If the IMU has yawed transfer the roll angle to the pitch angel
-  angle_roll -= angle_pitch * sin(gyroZ * 0.000002131);               //If the IMU has yawed transfer the pitch angle to the roll angel
+  //0.000001066 = 0.0000611 * (3.142(PI) / 180degr) The Arduino sin function is in radians
+  //angle_pitch += angle_roll * sin(gyroZ * 0.000002131);               //If the IMU has yawed transfer the roll angle to the pitch angel
+  //angle_roll -= angle_pitch * sin(gyroZ * 0.000002131);               //If the IMU has yawed transfer the pitch angle to the roll angel
 
+  //######################################################################################################################################
+  //Due to the fact, that the datatype float can only handle 6-7 digits (in total) of precision it would be better to increase the constant factor by 1000
+  //After the calculation the result gets divided by 1000 again:
+  angle_pitch += angle_roll * sin((gyroZ * 0.002131)/1000.0);               //If the IMU has yawed transfer the roll angle to the pitch angel
+  angle_roll -= angle_pitch * sin((gyroZ * 0.002131)/1000.0);               //If the IMU has yawed transfer the pitch angle to the roll angel
+  
   //angle_pitch = constrain(angle_pitch, -90.00, 90.00);
   //angle_roll = constrain(angle_roll, -90.00, 90.00);
-  servoXpos = map(angle_roll, 90.00,-90.00,0,180);
-  servoYpos = map(angle_pitch, -90.00,90.00,0,180);
-
+  
+  //The map function uses integer math and therefore might suppress fractions:
+  //servoXpos = map(angle_roll, 90.00,-90.00,0,180);
+  //servoYpos = map(angle_pitch, -90.00,90.00,0,180);
+  
+  //############################################################################################################################
+  //More precise solution (uses Microseconds for the Servo.writeMicroseconds()-function, which is also faster and more precise):
+  //500us translate to 0° and 2500° translate to 180° of servo angle:
+  servoXpos = ((angle_roll - 90.0)*(2500.0 - 500.0) / (-90.0 - 90.0)) + 500.0;
+  servoYpos = ((angle_pitch - (-90.0))*(2500.0 - 500.0) / (90.0 - (-90.0))) + 500.0;  
+    
+    
    count++;
    while(micros() - loop_timer < 8000);{
     if(count==1){
-      if(servoXpos >=0 && servoXpos <=180){
-         myservoX.write(servoXpos );
+      if(servoXpos >=500.0 && servoXpos <=2500.0){ //setting 500us and 2500us as 0° and 180° limits
+         //myservoX.write(servoXpos );
+           myservoX.writeMicroseconds(servoXpos);
         }
      }
     if(count==2){
       count=0;
-      if(servoYpos >=0 && servoYpos <=180){
-         myservoY.write(servoYpos);
+      if(servoYpos >=500.0 && servoYpos <=2500.0){ //setting 500us and 2500us as 0° and 180° limits
+         //myservoY.write(servoYpos);
+           myservoY.writeMicroseconds(servoYpos);
       }
      }
    }
